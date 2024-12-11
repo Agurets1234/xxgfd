@@ -202,38 +202,47 @@ function displayItem(item) {
     startAutoRefresh();  // Начать автоматическое обновление
 }
 // Функция для получения тега StatTrak (если он есть)
-// Определение тега по типу предмета
 function getMarketStTag(searchString, weaponSt, weaponSv) {
-    // Проверка, является ли предмет особым (например, ножи, перчатки)
-    const isKnife = searchString.toLowerCase().includes("%e2%98%85");
+    return weaponSt && searchString.includes('StatTrak™') ? 'StatTrak™' : 'Normal';
+}
 
-    if (weaponSv) {
-        // Сувенир
-        return "tag_tournament";
-    }
+// Функция для выполнения запроса на Steam Market
+// Функция для выполнения запроса на Steam Market с отладочной информацией
+async function makeSteamRequest(requestUrl, button) {
+    try {
+        // Запрос на сервер Steam
+        const response = await fetch(requestUrl);
+        
+        // Проверяем, если ответ успешный
+        if (!response.ok) {
+            console.error("Ошибка запроса:", response.status, response.statusText);
+            button.innerHTML = 'Ошибка при загрузке цены';
+            return;
+        }
+        
+        // Получаем данные в формате JSON
+        const data = await response.json();
+        console.log("Ответ Steam:", data); // Выводим ответ для отладки
 
-    if (weaponSt && isKnife) {
-        // StatTrak и особый предмет
-        return "tag_unusual_strange";
-    } else if (weaponSt && !isKnife) {
-        // Только StatTrak
-        return "tag_strange";
-    } else if (!weaponSt && isKnife) {
-        // Только особый предмет
-        return "tag_unusual";
-    } else if (!weaponSt && !isKnife) {
-        // Обычный предмет
-        return "tag_normal";
-    } else {
-        console.error("Ошибка: не удалось определить статус скина");
+        // Проверяем, есть ли результаты
+        if (data.results && data.results.length > 0) {
+            const price = data.results[0].sell_listings[0].price / 100;  // Цена в Steam Market делится на 100
+            button.innerHTML = `Цена: $${price.toFixed(2)}`;
+        } else {
+            button.innerHTML = 'Цена не найдена';
+        }
+    } catch (error) {
+        console.error('Ошибка при загрузке данных:', error);
+        button.innerHTML = 'Ошибка';
     }
 }
 
-// Создание кнопки загрузки цены
+
+// Функция для создания кнопки загрузки цены
 function createLoadPriceButton(searchString, price, weaponSt, weaponSv) {
     let statTrakTag = getMarketStTag(searchString, weaponSt, weaponSv);
 
-    // URL для запроса
+    // Строим URL для запроса
     let requestUrl =
         "https://steamcommunity.com/market/search/render/?query=" +
         searchString +
@@ -243,45 +252,17 @@ function createLoadPriceButton(searchString, price, weaponSt, weaponSv) {
         statTrakTag +
         "&norender=1";
 
-    // Используем CORS-прокси
-    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-    const proxiedRequestUrl = proxyUrl + requestUrl;
+    let button = document.createElement("button");
+    button.className = "load-price-button";
+    button.innerHTML = "Загрузить цену";
 
-    let button = document.createElement("div");
-    button.className = "xse_addon_button";
-    button.innerHTML = "Load Price";
-
-    // Обработчик нажатия на кнопку
+    // Добавляем обработчик клика на кнопку для получения цены
     button.addEventListener("click", function(event) {
         event.stopPropagation();
-        makeSteamRequest(proxiedRequestUrl, price, button);
+        makeSteamRequest(requestUrl, button);
     });
 
     return button;
-}
-
-// Запрос к Steam с использованием Fetch API
-function makeSteamRequest(url, price, button) {
-    fetch(url, {
-        method: 'GET',
-        headers: {
-            'Origin': window.location.origin,
-            'Accept': 'application/json',
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data && data.results && data.results[0] && data.results[0].sell_listings) {
-            let priceData = data.results[0].sell_listings[0].price;
-            price.innerHTML = "Цена: " + priceData.formatted;
-        } else {
-            price.innerHTML = "Цена не найдена";
-        }
-    })
-    .catch(error => {
-        console.error('Ошибка запроса:', error);
-        price.innerHTML = "Ошибка при загрузке цены";
-    });
 }
 
 function displayItemListByType(type) {
